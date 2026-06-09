@@ -42,6 +42,10 @@ func NewHistory(path string, maxSize int) (*History, error) {
 	if len(lines[len(lines)-1]) > 0 {
 		lines = append(lines, "")
 	}
+	// Truncate to maxSize if the file has more entries than allowed
+	if len(lines)-1 > maxSize {
+		lines = append(lines[len(lines)-1-maxSize:len(lines)-1], "")
+	}
 	return &History{
 		path:     path,
 		maxSize:  maxSize,
@@ -61,6 +65,8 @@ func (h *History) append(line string) error {
 		lines = lines[len(lines)-h.maxSize:]
 	}
 	h.lines = append(lines, "")
+	h.cursor = len(h.lines) - 1
+	h.modified = make(map[int]string)
 	return os.WriteFile(h.path, []byte(strings.Join(h.lines, "\n")), 0600)
 }
 
