@@ -69,7 +69,7 @@ func buildPattern(fuzzy bool, fuzzyAlgo algo.Algo, extended bool, caseMode Case,
 	withPos bool, cacheable bool, nth []Range, delimiter Delimiter, runes []rune) *Pattern {
 	return BuildPattern(NewChunkCache(), make(map[string]*Pattern),
 		fuzzy, fuzzyAlgo, extended, caseMode, normalize, forward,
-		withPos, cacheable, nth, delimiter, revision{}, runes, nil, 0)
+		withPos, cacheable, nth, delimiter, revision{}, runes, nil, 0, false)
 }
 
 func TestExact(t *testing.T) {
@@ -229,7 +229,7 @@ func buildChunks(numChunks int) []*Chunk {
 func buildPatternWith(cache *ChunkCache, runes []rune) *Pattern {
 	return BuildPattern(cache, make(map[string]*Pattern),
 		true, algo.FuzzyMatchV2, true, CaseSmart, false, true,
-		false, true, []Range{}, Delimiter{}, revision{}, runes, nil, 0)
+		false, true, []Range{}, Delimiter{}, revision{}, runes, nil, 0, false)
 }
 
 func TestBitmapCacheBenefit(t *testing.T) {

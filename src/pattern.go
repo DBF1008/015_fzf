@@ -67,6 +67,7 @@ type Pattern struct {
 	startIndex    int32
 	directAlgo    algo.Algo
 	directTerm    *term
+	displayNth    bool
 }
 
 var _splitRegex *regexp.Regexp
@@ -77,7 +78,7 @@ func init() {
 
 // BuildPattern builds Pattern object from the given arguments
 func BuildPattern(cache *ChunkCache, patternCache map[string]*Pattern, fuzzy bool, fuzzyAlgo algo.Algo, extended bool, caseMode Case, normalize bool, forward bool,
-	withPos bool, cacheable bool, nth []Range, delimiter Delimiter, revision revision, runes []rune, denylist map[int32]struct{}, startIndex int32) *Pattern {
+	withPos bool, cacheable bool, nth []Range, delimiter Delimiter, revision revision, runes []rune, denylist map[int32]struct{}, startIndex int32, displayNth bool) *Pattern {
 
 	var asString string
 	if extended {
@@ -150,10 +151,15 @@ func BuildPattern(cache *ChunkCache, patternCache map[string]*Pattern, fuzzy boo
 		cache:         cache,
 		denylist:      denylist,
 		startIndex:    startIndex,
+		displayNth:    displayNth,
 	}
 
 	ptr.cacheKey = ptr.buildCacheKey()
 	ptr.directAlgo, ptr.directTerm = ptr.buildDirectAlgo(fuzzyAlgo)
+	if displayNth {
+		ptr.directAlgo = nil
+		ptr.directTerm = nil
+	}
 	ptr.procFun[termFuzzy] = fuzzyAlgo
 	ptr.procFun[termEqual] = algo.EqualMatch
 	ptr.procFun[termExact] = algo.ExactMatchNaive
@@ -383,6 +389,19 @@ func (p *Pattern) matchChunk(chunk *Chunk, cachedBitmap *ChunkBitmap, slab *util
 	return matches, bitmap
 }
 
+// getSearchText returns the text to use for matching. When displayNth is active
+// and the item has origText, it returns a Chars built from the original text
+// (with ANSI codes stripped) so that searching uses the original input.
+func (p *Pattern) getSearchText(item *Item) util.Chars {
+	if p.displayNth && item.origText != nil {
+		stripped, _, _ := extractColor(byteString(*item.origText), nil, nil)
+		chars := util.ToChars(stringBytes(stripped))
+		chars.Index = item.text.Index
+		return chars
+	}
+	return item.text
+}
+
 // MatchItem returns the match result if the Item is a match.
 // A zero-value Result (with item == nil) indicates no match.
 func (p *Pattern) MatchItem(item *Item, withPos bool, slab *util.Slab) (Result, []Offset, *[]int) {
@@ -403,7 +422,8 @@ func (p *Pattern) MatchItem(item *Item, withPos bool, slab *util.Slab) (Result, 
 func (p *Pattern) basicMatch(item *Item, withPos bool, slab *util.Slab) (Offset, int, *[]int) {
 	var input []Token
 	if len(p.nth) == 0 {
-		input = []Token{{text: &item.text, prefixLength: 0}}
+		searchText := p.getSearchText(item)
+		input = []Token{{text: &searchText, prefixLength: 0}}
 	} else {
 		input = p.transformInput(item)
 	}
@@ -416,7 +436,8 @@ func (p *Pattern) basicMatch(item *Item, withPos bool, slab *util.Slab) (Offset,
 func (p *Pattern) extendedMatch(item *Item, withPos bool, slab *util.Slab) ([]Offset, int, *[]int) {
 	var input []Token
 	if len(p.nth) == 0 {
-		input = []Token{{text: &item.text, prefixLength: 0}}
+		searchText := p.getSearchText(item)
+		input = []Token{{text: &searchText, prefixLength: 0}}
 	} else {
 		input = p.transformInput(item)
 	}
@@ -471,7 +492,14 @@ func (p *Pattern) transformInput(item *Item) []Token {
 		}
 	}
 
-	tokens := Tokenize(item.text.ToString(), p.delimiter)
+	var sourceText string
+	if p.displayNth && item.origText != nil {
+		stripped, _, _ := extractColor(byteString(*item.origText), nil, nil)
+		sourceText = stripped
+	} else {
+		sourceText = item.text.ToString()
+	}
+	tokens := Tokenize(sourceText, p.delimiter)
 	ret := Transform(tokens, p.nth)
 	// Strip the last delimiter to allow suffix match
 	if len(ret) > 0 && !p.delimiter.IsAwk() {

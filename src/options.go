@@ -602,6 +602,8 @@ type Options struct {
 	WithNth           func(Delimiter) func([]Token, int32) string
 	WithNthExpr       string
 	AcceptNth         func(Delimiter) func([]Token, int32) string
+	DisplayNth        func(Delimiter) func([]Token, int32) string
+	DisplayNthExpr    string
 	Delimiter         Delimiter
 	Sort              int
 	Raw               bool
@@ -2841,6 +2843,15 @@ func parseOptions(index *int, opts *Options, allArgs []string) error {
 			if opts.AcceptNth, err = nthTransformer(str); err != nil {
 				return err
 			}
+		case "--display-nth":
+			str, err := nextString("nth expression required")
+			if err != nil {
+				return err
+			}
+			if opts.DisplayNth, err = nthTransformer(str); err != nil {
+				return err
+			}
+			opts.DisplayNthExpr = str
 		case "-s", "--sort":
 			if opts.Sort, err = optionalNumeric(1); err != nil {
 				return err
@@ -3725,6 +3736,10 @@ func postProcessOptions(opts *Options) error {
 
 	if opts.HeaderLinesShape == tui.BorderNone {
 		opts.HeaderLinesShape = tui.BorderPhantom
+	}
+
+	if opts.WithNth != nil && opts.DisplayNth != nil {
+		return errors.New("--with-nth and --display-nth are mutually exclusive")
 	}
 
 	if opts.Pointer == nil {

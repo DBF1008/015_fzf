@@ -153,7 +153,7 @@ func Run(opts *Options) (int, error) {
 	}
 
 	var nthTransformer func([]Token, int32) string
-	if opts.WithNth == nil {
+	if opts.WithNth == nil && opts.DisplayNth == nil {
 		chunkList = NewChunkList(cache, func(item *Item, data []byte) bool {
 			item.text, item.colors = ansiProcessor(data)
 			item.text.Index = itemIndex
@@ -161,7 +161,11 @@ func Run(opts *Options) (int, error) {
 			return true
 		})
 	} else {
-		nthTransformer = opts.WithNth(opts.Delimiter)
+		if opts.WithNth != nil {
+			nthTransformer = opts.WithNth(opts.Delimiter)
+		} else {
+			nthTransformer = opts.DisplayNth(opts.Delimiter)
+		}
 		chunkList = NewChunkList(cache, func(item *Item, data []byte) bool {
 			if nthTransformer == nil {
 				item.text, item.colors = ansiProcessor(data)
@@ -253,7 +257,8 @@ func Run(opts *Options) (int, error) {
 		denyMutex.Unlock()
 		return BuildPattern(cache, patternCache,
 			opts.Fuzzy, opts.FuzzyAlgo, opts.Extended, opts.Case, opts.Normalize, forward, withPos,
-			opts.Filter == nil, nth, opts.Delimiter, inputRevision, runes, denylistCopy, headerLines)
+			opts.Filter == nil, nth, opts.Delimiter, inputRevision, runes, denylistCopy, headerLines,
+			opts.DisplayNth != nil)
 	}
 	matcher := NewMatcher(cache, patternBuilder, sort, opts.Tac, eventBox, inputRevision, opts.Threads)
 

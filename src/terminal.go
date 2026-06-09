@@ -351,6 +351,8 @@ type Terminal struct {
 	withNthDefault       string
 	withNthExpr          string
 	withNthEnabled       bool
+	displayNthEnabled    bool
+	displayNthExpr       string
 	acceptNth            func([]Token, int32) string
 	tabstop              int
 	margin               [4]sizeSpec
@@ -1109,6 +1111,8 @@ func NewTerminal(opts *Options, eventBox *util.EventBox, executor *util.Executor
 		withNthDefault:     opts.WithNthExpr,
 		withNthExpr:        opts.WithNthExpr,
 		withNthEnabled:     opts.WithNth != nil,
+		displayNthEnabled:  opts.DisplayNth != nil,
+		displayNthExpr:     opts.DisplayNthExpr,
 		tabstop:            opts.Tabstop,
 		raw:                opts.Raw,
 		hasStartActions:    false,
@@ -1410,6 +1414,9 @@ func (t *Terminal) environImpl(forPreview bool) []string {
 	}
 	if len(t.withNthExpr) > 0 {
 		env = append(env, "FZF_WITH_NTH="+t.withNthExpr)
+	}
+	if len(t.displayNthExpr) > 0 {
+		env = append(env, "FZF_DISPLAY_NTH="+t.displayNthExpr)
 	}
 	if t.raw {
 		val := "0"
@@ -4048,7 +4055,15 @@ func (t *Terminal) printHighlighted(result Result, colBase tui.ColorPair, colMat
 	matchOffsets := []Offset{}
 	var pos *[]int
 	if match && t.resultMerger.pattern != nil {
-		_, matchOffsets, pos = t.resultMerger.pattern.MatchItem(item, true, t.slab)
+		if t.displayNthEnabled && item.origText != nil {
+			// For display-nth, match against displayed text for correct highlight offsets
+			itemCopy := *item
+			itemCopy.origText = nil
+			itemCopy.transformed = nil
+			_, matchOffsets, pos = t.resultMerger.pattern.MatchItem(&itemCopy, true, t.slab)
+		} else {
+			_, matchOffsets, pos = t.resultMerger.pattern.MatchItem(item, true, t.slab)
+		}
 	}
 	charOffsets := matchOffsets
 	if pos != nil {
