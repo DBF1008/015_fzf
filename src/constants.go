@@ -45,7 +45,7 @@ const (
 	slab32Size int = 2048       // 8KB * 32 = 256KB
 
 	// Do not cache results of low selectivity queries
-	queryCacheMax int = chunkSize / 2
+	queryCacheMax int = chunkSize
 
 	// Not to cache mergers with large lists
 	mergerCacheMax int = 100000

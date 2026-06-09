@@ -8,15 +8,25 @@ type ChunkBitmap [chunkBitWords]uint64
 // queryCache associates query strings to bitmaps of matching items
 type queryCache map[string]ChunkBitmap
 
+// IsAllZero returns true if no bits are set in the bitmap.
+func (bm *ChunkBitmap) IsAllZero() bool {
+	for _, w := range bm {
+		if w != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // ChunkCache associates Chunk and query string to bitmaps
 type ChunkCache struct {
-	mutex sync.Mutex
+	mutex sync.RWMutex
 	cache map[*Chunk]*queryCache
 }
 
 // NewChunkCache returns a new ChunkCache
 func NewChunkCache() *ChunkCache {
-	return &ChunkCache{sync.Mutex{}, make(map[*Chunk]*queryCache)}
+	return &ChunkCache{cache: make(map[*Chunk]*queryCache)}
 }
 
 func (cc *ChunkCache) Clear() {
@@ -56,8 +66,8 @@ func (cc *ChunkCache) Lookup(chunk *Chunk, key string) *ChunkBitmap {
 		return nil
 	}
 
-	cc.mutex.Lock()
-	defer cc.mutex.Unlock()
+	cc.mutex.RLock()
+	defer cc.mutex.RUnlock()
 
 	qc, ok := cc.cache[chunk]
 	if ok {
@@ -74,8 +84,8 @@ func (cc *ChunkCache) Search(chunk *Chunk, key string) *ChunkBitmap {
 		return nil
 	}
 
-	cc.mutex.Lock()
-	defer cc.mutex.Unlock()
+	cc.mutex.RLock()
+	defer cc.mutex.RUnlock()
 
 	qc, ok := cc.cache[chunk]
 	if !ok {

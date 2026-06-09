@@ -311,6 +311,16 @@ func (p *Pattern) Match(chunk *Chunk, slab *util.Slab) []Result {
 		cachedBitmap = p.cache.Search(chunk, cacheKey)
 	}
 
+	// If the prefix/suffix bitmap has no matches, this chunk cannot have
+	// matches for the current (more restrictive) query either. Skip entirely.
+	if cachedBitmap != nil && cachedBitmap.IsAllZero() {
+		var zeroBitmap ChunkBitmap
+		if p.cacheable {
+			p.cache.Add(chunk, cacheKey, zeroBitmap, 0)
+		}
+		return nil
+	}
+
 	matches, bitmap := p.matchChunk(chunk, cachedBitmap, slab)
 
 	if p.cacheable {

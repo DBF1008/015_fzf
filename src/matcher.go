@@ -23,6 +23,7 @@ type MatchResult struct {
 	merger     *Merger
 	passMerger *Merger
 	cancelled  bool
+	count      int
 }
 
 func (mr MatchResult) cacheable() bool {
@@ -79,8 +80,6 @@ func NewMatcher(cache *ChunkCache, patternBuilder func([]rune) *Pattern,
 
 // Loop puts Matcher in action
 func (m *Matcher) Loop() {
-	prevCount := 0
-
 	for {
 		var request MatchRequest
 
@@ -121,15 +120,10 @@ func (m *Matcher) Loop() {
 		count := CountItems(request.chunks)
 
 		if !cacheCleared {
-			if count == prevCount {
-				// Look up mergerCache
-				if cached, found := m.mergerCache[patternString]; found && cached.final() == request.final {
-					result = cached
-				}
-			} else {
-				// Invalidate mergerCache
-				prevCount = count
-				m.mergerCache = make(map[string]MatchResult)
+			if cached, found := m.mergerCache[patternString]; found &&
+				cached.final() == request.final &&
+				cached.count == count {
+				result = cached
 			}
 		}
 
@@ -141,6 +135,7 @@ func (m *Matcher) Loop() {
 
 		if !result.cancelled {
 			if result.cacheable() {
+				result.count = count
 				m.mergerCache[patternString] = result
 			}
 			result.merger.final = request.final
@@ -160,12 +155,12 @@ func (m *Matcher) scan(request MatchRequest) MatchResult {
 	numChunks := len(request.chunks)
 	if numChunks == 0 {
 		m := EmptyMerger(request.revision)
-		return MatchResult{m, m, false}
+		return MatchResult{merger: m, passMerger: m}
 	}
 	pattern := request.pattern
 	passMerger := PassMerger(&request.chunks, m.tac, request.revision, pattern.startIndex)
 	if pattern.IsEmpty() {
-		return MatchResult{passMerger, passMerger, false}
+		return MatchResult{merger: passMerger, passMerger: passMerger}
 	}
 
 	minIndex := request.chunks[0].items[0].Index()
@@ -222,7 +217,7 @@ func (m *Matcher) scan(request MatchRequest) MatchResult {
 		}
 
 		if m.cancelScan.Get() || m.reqBox.Peek(reqReset) {
-			return MatchResult{nil, nil, wait()}
+			return MatchResult{cancelled: wait()}
 		}
 
 		if time.Since(startedAt) > progressMinDuration {
@@ -236,7 +231,7 @@ func (m *Matcher) scan(request MatchRequest) MatchResult {
 		partialResults[partialResult.index] = partialResult.matches
 	}
 	merger := NewMerger(pattern, partialResults, m.sort && request.pattern.sortable, m.tac, request.revision, minIndex, maxIndex)
-	return MatchResult{merger, passMerger, false}
+	return MatchResult{merger: merger, passMerger: passMerger}
 }
 
 // Reset is called to interrupt/signal the ongoing search
